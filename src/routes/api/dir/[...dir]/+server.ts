@@ -1,45 +1,68 @@
 import { join } from 'node:path';
-import type { Stats } from 'node:fs';
-import { readdir, stat as fileStat } from 'node:fs/promises';
+import type { Dirent, Stats } from 'node:fs';
+import { readdir, readlink, realpath, lstat } from 'node:fs/promises';
 
 import { error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 
 const cwd = process.cwd();
 
+const getType = (entry: Dirent | Stats) =>
+	entry.isSymbolicLink()
+		? 'l'
+		: entry.isFile()
+		? 'f'
+		: entry.isDirectory()
+		? 'd'
+		: entry.isSocket()
+		? 's'
+		: entry.isBlockDevice()
+		? 'b'
+		: entry.isCharacterDevice()
+		? 'c'
+		: '?';
+
 export const GET: RequestHandler = async ({ params }) => {
 	const dirArg = params.dir ?? '';
-	if (dirArg.startsWith('/') || dirArg.startsWith('.') || dirArg.startsWith('\\'))
-		throw error(403, 'FORBIDDEN');
 
 	try {
 		const dir = join(cwd, dirArg);
-		const entries = await readdir(dir, { withFileTypes: true, encoding: 'utf-8' });
+		const entries = await readdir(dir, { withFileTypes: true });
 		const result = await Promise.all(
 			entries.map(async (entry) => {
 				let stat: Stats | { error: string };
+				const fullFileName = join(dir, entry.name);
+				let realPath: string | undefined = undefined;
 				try {
-					stat = await fileStat(join(dir, entry.name));
+					stat = await lstat(fullFileName);
+					realPath = await realpath(fullFileName);
 				} catch (err: any) {
 					stat = { error: err?.code ?? err?.message };
 				}
-				const type = entry.isFile()
-					? 'f'
-					: entry.isDirectory()
-					? 'd'
-					: entry.isSymbolicLink()
-					? 'l'
-					: entry.isSocket()
-					? 's'
-					: entry.isBlockDevice()
-					? 'b'
-					: entry.isCharacterDevice()
-					? 'c'
-					: '?';
+
+				let type = getType(entry);
+				const isSymLink = entry.isSymbolicLink();
+
+				let symlink: string | undefined = undefined;
+
+				if (isSymLink) {
+					try {
+						symlink = await readlink(fullFileName);
+						if (realPath) {
+							stat = await lstat(realPath);
+							type = getType(stat);
+						}
+					} catch (err) {
+						console.error(err);
+					}
+				}
+
 				return {
 					...entry,
 					type,
-					stat
+					stat,
+					symlink,
+					realPath
 				};
 			})
 		);

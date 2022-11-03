@@ -12,8 +12,10 @@
 </script>
 
 <li on:click={toggle}>
-	{entry.type}
-	{entry.name}
+	<code>
+		{entry.type}
+		{entry.name}
+	</code>
 </li>
 {#if entry.type === 'd' && expandend}
 	<Directory directory={[...directory, entry.name]} />
