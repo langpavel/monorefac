@@ -46,6 +46,7 @@ export const GET: RequestHandler = async ({ params }) => {
 		return new Response(JSON.stringify(result));
 	} catch (err: any) {
 		const message = err?.code ?? err?.message;
+		console.error(err);
 		throw error(400, message);
 	}
 };
