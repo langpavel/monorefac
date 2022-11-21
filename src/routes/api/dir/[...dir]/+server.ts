@@ -66,7 +66,9 @@ export const GET: RequestHandler = async ({ params }) => {
 				};
 			})
 		);
-		return new Response(JSON.stringify(result));
+		return new Response(JSON.stringify(result), {
+			headers: { 'Content-Type': 'application/json' }
+		});
 	} catch (err: any) {
 		const message = err?.code ?? err?.message;
 		console.error(err);
